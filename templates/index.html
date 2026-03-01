@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIBE CODE OPS HUB</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ -->
+<!--  SIDEBAR                               -->
+<!-- ═══════════════════════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <i class="fa-solid fa-bolt"></i>
+    <span>VIBE CODE OPS</span>
+  </div>
+  <div class="sidebar-section-label">Operations</div>
+  <a class="sidebar-link active" data-tab="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+  <a class="sidebar-link" data-tab="time-blocks"><i class="fa-solid fa-clock"></i> Time Blocks</a>
+  <a class="sidebar-link" data-tab="daily-tracker"><i class="fa-solid fa-list-check"></i> Daily Tracker</a>
+
+  <div class="sidebar-section-label">Content</div>
+  <a class="sidebar-link" data-tab="video-log"><i class="fa-solid fa-video"></i> Video Log</a>
+  <a class="sidebar-link" data-tab="hook-bank"><i class="fa-solid fa-magnet"></i> Hook Bank</a>
+  <a class="sidebar-link" data-tab="pipeline"><i class="fa-solid fa-bars-staggered"></i> Pipeline</a>
+
+  <div class="sidebar-section-label">Intelligence</div>
+  <a class="sidebar-link" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</a>
+  <a class="sidebar-link" data-tab="accountability"><i class="fa-solid fa-ranking-star"></i> Accountability</a>
+
+  <div class="sidebar-section-label">Growth</div>
+  <a class="sidebar-link" data-tab="monetization"><i class="fa-solid fa-dollar-sign"></i> Monetization</a>
+  <a class="sidebar-link" data-tab="vault"><i class="fa-solid fa-vault"></i> IP Vault</a>
+  <a class="sidebar-link" data-tab="roadmap"><i class="fa-solid fa-road"></i> 90-Day Roadmap</a>
+
+  <div class="sidebar-section-label">System</div>
+  <a class="sidebar-link" data-tab="emails"><i class="fa-solid fa-envelope"></i> Email Center</a>
+  <a class="sidebar-link" data-tab="settings"><i class="fa-solid fa-gear"></i> Settings</a>
+</nav>
+
+<!-- ═══════════════════════════════════════ -->
+<!--  MAIN CONTENT AREA                     -->
+<!-- ═══════════════════════════════════════ -->
+<main class="main-content">
+
+<!-- ─── DASHBOARD ─── -->
+<section id="dashboard" class="tab-content active">
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <span class="header-date">{{ today.strftime('%A, %B %d, %Y') }}</span>
+  </div>
+
+  <div class="phase-banner phase-{{ phase }}">
+    <div class="phase-info">
+      <span class="phase-label">PHASE {{ phase }}</span>
+      <span class="phase-name">{{ phase_name }}</span>
+    </div>
+    <div class="phase-progress">
+      <span>Day {{ days_in }} of 90</span>
+      <div class="progress-bar"><div class="progress-fill" style="width:{{ [days_in / 90 * 100, 100] | min }}%"></div></div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:#7c6cf022;color:#7c6cf0"><i class="fa-solid fa-video"></i></div>
+      <div class="kpi-data">
+        <span class="kpi-value">{{ total_videos_today }}</span>
+        <span class="kpi-label">Videos Today</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:#00c89722;color:#00c897"><i class="fa-solid fa-film"></i></div>
+      <div class="kpi-data">
+        <span class="kpi-value">{{ total_videos_all }}</span>
+        <span class="kpi-label">Total Videos</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:#f0834d22;color:#f0834d"><i class="fa-solid fa-eye"></i></div>
+      <div class="kpi-data">
+        <span class="kpi-value">{{ avg_retention }}%</span>
+        <span class="kpi-label">Avg 3s Retention</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:#3b82f622;color:#3b82f6"><i class="fa-solid fa-magnet"></i></div>
+      <div class="kpi-data">
+        <span class="kpi-value">{{ hooks | length }}</span>
+        <span class="kpi-label">Hooks Banked</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">Partner Status Today</h3>
+      <div class="partner-status-list">
+        {% for p in partners %}
+        {% set log = today_logs | selectattr('partner_id', 'equalto', p.id) | list | first %}
+        <div class="partner-status-row">
+          <div class="partner-avatar" style="background:{{ time_blocks[loop.index0].color }}">{{ p.name[0] }}</div>
+          <div class="partner-info">
+            <span class="partner-name">{{ p.name }}</span>
+            <span class="partner-role">{{ p.role }}</span>
+          </div>
+          {% if log %}
+          <span class="badge badge-green">Logged</span>
+          {% else %}
+          <span class="badge badge-red">No Log</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Quick Actions</h3>
+      <div class="quick-actions">
+        <button class="btn btn-primary" onclick="switchTab('daily-tracker')"><i class="fa-solid fa-plus"></i> Log Daily Work</button>
+        <button class="btn btn-secondary" onclick="switchTab('video-log')"><i class="fa-solid fa-video"></i> Add Video</button>
+        <button class="btn btn-secondary" onclick="switchTab('hook-bank')"><i class="fa-solid fa-magnet"></i> Add Hook</button>
+        <button class="btn btn-accent" onclick="switchTab('emails')"><i class="fa-solid fa-envelope"></i> Send Reminder</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Revenue Overview</h3>
+    <div class="revenue-bar">
+      <div class="rev-item"><span class="rev-label">Total Revenue</span><span class="rev-value green">${{ "%.2f" | format(total_revenue) }}</span></div>
+      <div class="rev-item"><span class="rev-label">Total Cost</span><span class="rev-value red">${{ "%.2f" | format(total_cost) }}</span></div>
+      <div class="rev-item"><span class="rev-label">Net Profit</span><span class="rev-value {% if total_revenue - total_cost >= 0 %}green{% else %}red{% endif %}">${{ "%.2f" | format(total_revenue - total_cost) }}</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TIME BLOCKS ─── -->
+<section id="time-blocks" class="tab-content">
+  <div class="page-header"><h1>Time Blocks</h1><span class="header-sub">Daily Schedule Structure</span></div>
+
+  <div class="time-blocks-grid">
+    {% for tb in time_blocks %}
+    <div class="schedule-card" style="--accent:{{ tb.color }}">
+      <div class="schedule-header">
+        <div class="schedule-avatar" style="background:{{ tb.color }}">
+          {% if partners | length > loop.index0 %}{{ partners[loop.index0].name[0] }}{% else %}?{% endif %}
+        </div>
+        <div>
+          <h3>{% if partners | length > loop.index0 %}{{ partners[loop.index0].name }}{% else %}Partner {{ loop.index }}{% endif %}</h3>
+          <span class="schedule-role">{{ tb.role }}</span>
+        </div>
+      </div>
+      <div class="block-list">
+        {% for b in tb.blocks %}
+        <div class="time-block-item">
+          <div class="block-time-badge" style="background:{{ tb.color }}22;color:{{ tb.color }}">{{ b.start }} - {{ b.end }}</div>
+          <div class="block-task">{{ b.task }}</div>
+          <div class="block-detail">{{ b.detail }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="deliverables">
+        <h4>Daily Deliverables</h4>
+        <ul>
+          {% for d in tb.deliverables %}
+          <li>{{ d }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <h3 class="card-title">Daily Check-in: 9:15 PM</h3>
+    <p class="muted">Each person reports: Deliverables completed, what worked, what failed, plan for tomorrow.</p>
+  </div>
+</section>
+
+<!-- ─── DAILY TRACKER ─── -->
+<section id="daily-tracker" class="tab-content">
+  <div class="page-header"><h1>Daily Tracker</h1></div>
+
+  <div class="card">
+    <h3 class="card-title">Log Today's Work</h3>
+    <form id="daily-log-form" class="form-grid">
+      <div class="form-group">
+        <label>Partner</label>
+        <select name="partner_id" required>
+          {% for p in partners %}<option value="{{ p.id }}">{{ p.name }} - {{ p.role }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today.isoformat() }}">
+      </div>
+      <div class="form-group"><label>Scripts Written</label><input type="number" name="scripts_written" value="0" min="0"></div>
+      <div class="form-group"><label>Videos Edited</label><input type="number" name="videos_edited" value="0" min="0"></div>
+      <div class="form-group"><label>Videos Posted</label><input type="number" name="videos_posted" value="0" min="0"></div>
+      <div class="form-group"><label>Comments Replied</label><input type="number" name="comments_replied" value="0" min="0"></div>
+      <div class="form-group"><label>Hooks Written</label><input type="number" name="hooks_written" value="0" min="0"></div>
+      <div class="form-group form-check-group">
+        <label><input type="checkbox" name="trend_research"> Trend Research Done</label>
+      </div>
+      <div class="form-group full-width"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Save Log</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Recent Logs</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Partner</th><th>Scripts</th><th>Edited</th><th>Posted</th><th>Comments</th><th>Hooks</th><th>Research</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          {% for l in daily_logs %}
+          <tr>
+            <td>{{ l.date.strftime('%m/%d') }}</td>
+            <td>{{ l.partner.name }}</td>
+            <td>{{ l.scripts_written }}</td>
+            <td>{{ l.videos_edited }}</td>
+            <td>{{ l.videos_posted }}</td>
+            <td>{{ l.comments_replied }}</td>
+            <td>{{ l.hooks_written }}</td>
+            <td>{% if l.trend_research %}<i class="fa-solid fa-check green"></i>{% else %}<i class="fa-solid fa-xmark red"></i>{% endif %}</td>
+            <td class="truncate">{{ l.notes }}</td>
+            <td><button class="btn-icon" onclick="deleteItem('daily_log',{{ l.id }})"><i class="fa-solid fa-trash"></i></button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── VIDEO LOG ─── -->
+<section id="video-log" class="tab-content">
+  <div class="page-header"><h1>Video Log</h1><span class="header-sub">{{ recent_videos | length }} videos tracked</span></div>
+
+  <div class="card">
+    <h3 class="card-title">Add Video</h3>
+    <form id="video-form" class="form-grid">
+      <div class="form-group"><label>Date</label><input type="date" name="date_posted" value="{{ today.isoformat() }}"></div>
+      <div class="form-group">
+        <label>Platform</label>
+        <select name="platform"><option>TikTok</option><option>Instagram</option><option>YouTube Shorts</option><option>Facebook Reels</option></select>
+      </div>
+      <div class="form-group"><label>Topic</label><input type="text" name="topic" required></div>
+      <div class="form-group"><label>Format Type</label><input type="text" name="format_type" placeholder="e.g. listicle, story, tutorial"></div>
+      <div class="form-group"><label>Hook Used</label><input type="text" name="hook_used"></div>
+      <div class="form-group"><label>Length (sec)</label><input type="number" name="length_seconds" value="30" min="1"></div>
+      <div class="form-group"><label>3s Retention %</label><input type="number" name="retention_3s" step="0.1" min="0" max="100"></div>
+      <div class="form-group"><label>50% Retention %</label><input type="number" name="retention_50" step="0.1" min="0" max="100"></div>
+      <div class="form-group"><label>Avg Watch Time (s)</label><input type="number" name="avg_watch_time" step="0.1" min="0"></div>
+      <div class="form-group"><label>Views</label><input type="number" name="views" value="0" min="0"></div>
+      <div class="form-group"><label>Likes</label><input type="number" name="likes" value="0" min="0"></div>
+      <div class="form-group"><label>Comments</label><input type="number" name="comments_count" value="0" min="0"></div>
+      <div class="form-group"><label>Shares</label><input type="number" name="shares" value="0" min="0"></div>
+      <div class="form-group"><label>Saves</label><input type="number" name="saves" value="0" min="0"></div>
+      <div class="form-group form-check-group"><label><input type="checkbox" name="winner"> Winner?</label></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Add Video</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Video History</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Platform</th><th>Topic</th><th>Format</th><th>3s Ret</th><th>50% Ret</th><th>Views</th><th>Eng</th><th>W</th><th></th></tr></thead>
+        <tbody>
+          {% for v in recent_videos %}
+          <tr>
+            <td>{{ v.date_posted.strftime('%m/%d') }}</td>
+            <td><span class="platform-badge {{ v.platform | lower | replace(' ', '-') }}">{{ v.platform }}</span></td>
+            <td class="truncate">{{ v.topic }}</td>
+            <td>{{ v.format_type }}</td>
+            <td>{{ v.retention_3s }}%</td>
+            <td>{{ v.retention_50 }}%</td>
+            <td>{{ "{:,}".format(v.views) }}</td>
+            <td>{{ v.likes + v.comments_count + v.shares + v.saves }}</td>
+            <td>{% if v.winner %}<i class="fa-solid fa-trophy gold"></i>{% endif %}</td>
+            <td><button class="btn-icon" onclick="deleteItem('video',{{ v.id }})"><i class="fa-solid fa-trash"></i></button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── HOOK BANK ─── -->
+<section id="hook-bank" class="tab-content">
+  <div class="page-header"><h1>Hook Bank</h1><span class="header-sub">{{ hooks | length }} hooks stored</span></div>
+
+  <div class="card">
+    <h3 class="card-title">Add Hook</h3>
+    <form id="hook-form" class="form-grid">
+      <div class="form-group" style="grid-column:1/-1"><label>Hook Text</label><textarea name="text" rows="2" required placeholder="Why should someone not scroll past this?"></textarea></div>
+      <div class="form-group"><label>Format Type</label><input type="text" name="format_type" placeholder="e.g. question, shocking stat"></div>
+      <div class="form-group form-check-group"><label><input type="checkbox" name="tested"> Tested</label></div>
+      <div class="form-group"><label>3s Retention %</label><input type="number" name="avg_retention_3s" step="0.1" min="0" max="100"></div>
+      <div class="form-group form-check-group"><label><input type="checkbox" name="winning"> Winning</label></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Save Hook</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Hook Library</h3>
+    <div class="hook-list">
+      {% for h in hooks %}
+      <div class="hook-item {% if h.winning %}hook-winner{% endif %}">
+        <div class="hook-text">{{ h.text }}</div>
+        <div class="hook-meta">
+          <span class="hook-format">{{ h.format_type }}</span>
+          {% if h.tested %}<span class="badge badge-blue">Tested</span>{% endif %}
+          {% if h.winning %}<span class="badge badge-gold">Winner</span>{% endif %}
+          {% if h.avg_retention_3s %}<span class="badge badge-purple">{{ h.avg_retention_3s }}% ret</span>{% endif %}
+          <button class="btn-icon" onclick="deleteItem('hook',{{ h.id }})"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ─── ANALYTICS ─── -->
+<section id="analytics" class="tab-content">
+  <div class="page-header"><h1>Analytics</h1></div>
+  <div class="grid-2">
+    <div class="card"><h3 class="card-title">Daily Output (30 Days)</h3><canvas id="chart-daily"></canvas></div>
+    <div class="card"><h3 class="card-title">Platform Breakdown</h3><canvas id="chart-platforms"></canvas></div>
+  </div>
+  <div class="grid-2">
+    <div class="card"><h3 class="card-title">Format Performance</h3><canvas id="chart-formats"></canvas></div>
+    <div class="card">
+      <h3 class="card-title">Top Videos</h3>
+      <div id="top-videos-list" class="top-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ACCOUNTABILITY ─── -->
+<section id="accountability" class="tab-content">
+  <div class="page-header"><h1>Partner Accountability</h1><span class="header-sub">Performance Score = 40% Output + 60% Consistency</span></div>
+
+  <div class="leaderboard">
+    {% for ps in partner_scores | sort(attribute='score', reverse=True) %}
+    <div class="leaderboard-card">
+      <div class="leaderboard-rank">#{{ loop.index }}</div>
+      <div class="leaderboard-avatar" style="background:{{ time_blocks[loop.index0 if loop.index0 < time_blocks | length else 0].color }}">{{ ps.partner.name[0] }}</div>
+      <div class="leaderboard-info">
+        <span class="leaderboard-name">{{ ps.partner.name }}</span>
+        <span class="leaderboard-role">{{ ps.partner.role }}</span>
+      </div>
+      <div class="leaderboard-score">
+        <div class="score-circle {% if ps.score >= 75 %}score-green{% elif ps.score >= 50 %}score-yellow{% else %}score-red{% endif %}">
+          {{ ps.score }}
+        </div>
+      </div>
+      <div class="leaderboard-stats">
+        <span>{{ ps.days_active }} days active</span>
+        <span>{{ ps.total_output }} total output</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <h3 class="card-title">Accountability Rules</h3>
+    <div class="rules-grid">
+      <div class="rule-item"><i class="fa-solid fa-triangle-exclamation yellow"></i><span>2 misses per week = Performance Review</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-exclamation red"></i><span>4 misses per month = Role Restructure</span></div>
+      <div class="rule-item"><i class="fa-solid fa-chart-simple green"></i><span>Score below 75 = Corrective Action</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── PIPELINE ─── -->
+<section id="pipeline" class="tab-content">
+  <div class="page-header"><h1>Content Pipeline</h1></div>
+
+  <div class="card">
+    <h3 class="card-title">Add Pipeline Item</h3>
+    <form id="pipeline-form" class="form-grid">
+      <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+      <div class="form-group"><label>Content Type</label><input type="text" name="content_type" placeholder="e.g. short-form, compilation"></div>
+      <div class="form-group">
+        <label>Assigned To</label>
+        <select name="assigned_to">
+          <option value="">Unassigned</option>
+          {% for p in partners %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group"><label>Due Date</label><input type="date" name="due_date"></div>
+      <div class="form-group full-width"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Add to Pipeline</button></div>
+    </form>
+  </div>
+
+  <div class="pipeline-board">
+    {% set statuses = ['queued', 'in_progress', 'done'] %}
+    {% set status_labels = {'queued': 'Queued', 'in_progress': 'In Progress', 'done': 'Done'} %}
+    {% set status_colors = {'queued': '#7c6cf0', 'in_progress': '#f0834d', 'done': '#00c897'} %}
+    {% for s in statuses %}
+    <div class="pipeline-column">
+      <div class="pipeline-col-header" style="border-color:{{ status_colors[s] }}">
+        <span>{{ status_labels[s] }}</span>
+        <span class="count-badge">{{ pipeline_items | selectattr('status', 'equalto', s) | list | length }}</span>
+      </div>
+      <div class="pipeline-cards">
+        {% for item in pipeline_items | selectattr('status', 'equalto', s) %}
+        <div class="pipeline-card">
+          <div class="pipeline-card-title">{{ item.title }}</div>
+          <div class="pipeline-card-meta">
+            {% if item.partner %}<span>{{ item.partner.name }}</span>{% endif %}
+            {% if item.due_date %}<span>Due {{ item.due_date.strftime('%m/%d') }}</span>{% endif %}
+            {% if item.content_type %}<span class="badge badge-purple">{{ item.content_type }}</span>{% endif %}
+          </div>
+          <div class="pipeline-card-actions">
+            {% if s != 'queued' %}<button class="btn-sm" onclick="movePipeline({{ item.id }},'{{ statuses[statuses.index(s)-1] }}')"><i class="fa-solid fa-arrow-left"></i></button>{% endif %}
+            {% if s != 'done' %}<button class="btn-sm" onclick="movePipeline({{ item.id }},'{{ statuses[statuses.index(s)+1] }}')"><i class="fa-solid fa-arrow-right"></i></button>{% endif %}
+            <button class="btn-sm btn-danger" onclick="deleteItem('pipeline',{{ item.id }})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ─── EMAILS ─── -->
+<section id="emails" class="tab-content">
+  <div class="page-header"><h1>Email Center</h1></div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">Send Email</h3>
+      <form id="email-form">
+        <div class="form-group">
+          <label>Template</label>
+          <select id="email-template-select" onchange="loadEmailTemplate(this.value)">
+            <option value="">Custom</option>
+            {% for key, tmpl in email_templates.items() %}
+            <option value="{{ key }}">{{ tmpl.subject }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Recipients</label>
+          <div class="checkbox-group">
+            {% for p in partners %}
+            {% if p.email %}
+            <label><input type="checkbox" name="recipients" value="{{ p.email }}"> {{ p.name }} ({{ p.email }})</label>
+            {% else %}
+            <label class="muted"><input type="checkbox" disabled> {{ p.name }} (no email set)</label>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group"><label>Subject</label><input type="text" name="subject" id="email-subject" required></div>
+        <div class="form-group"><label>Body</label><textarea name="body" id="email-body" rows="10" required></textarea></div>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Send Email</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Email Log</h3>
+      <div class="email-log-list">
+        {% for e in email_logs %}
+        <div class="email-log-item">
+          <div class="email-log-header">
+            <span class="badge {% if e.status == 'sent' %}badge-green{% else %}badge-red{% endif %}">{{ e.status }}</span>
+            <span class="email-log-date">{{ e.sent_at.strftime('%m/%d %I:%M %p') }}</span>
+          </div>
+          <div class="email-log-subject">{{ e.subject }}</div>
+          <div class="email-log-to muted">To: {{ e.recipients }}</div>
+        </div>
+        {% endfor %}
+        {% if not email_logs %}
+        <p class="muted">No emails sent yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── IP VAULT ─── -->
+<section id="vault" class="tab-content">
+  <div class="page-header"><h1>IP Vault</h1><span class="header-sub">Your proprietary playbook</span></div>
+
+  <div class="card">
+    <h3 class="card-title">Add Entry</h3>
+    <form id="vault-form" class="form-grid">
+      <div class="form-group">
+        <label>Category</label>
+        <select name="category"><option>Winning Hook</option><option>Winning Script</option><option>Winning Format</option><option>Pacing Formula</option><option>Story Structure</option><option>Retention Trick</option></select>
+      </div>
+      <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+      <div class="form-group full-width"><label>Content</label><textarea name="content" rows="3" required></textarea></div>
+      <div class="form-group full-width"><label>Performance Note</label><input type="text" name="performance_note" placeholder="e.g. 72% retention, 50k views"></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Save to Vault</button></div>
+    </form>
+  </div>
+
+  <div class="vault-grid">
+    {% for v in vault_entries %}
+    <div class="vault-card">
+      <div class="vault-category">{{ v.category }}</div>
+      <h4>{{ v.title }}</h4>
+      <p>{{ v.content }}</p>
+      {% if v.performance_note %}<div class="vault-perf">{{ v.performance_note }}</div>{% endif %}
+      <div class="vault-footer">
+        <span class="muted">{{ v.created_at.strftime('%m/%d/%Y') }}</span>
+        <button class="btn-icon" onclick="deleteItem('vault',{{ v.id }})"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ─── MONETIZATION ─── -->
+<section id="monetization" class="tab-content">
+  <div class="page-header"><h1>Monetization</h1></div>
+
+  <div class="card">
+    <h3 class="card-title">Log Revenue / Cost</h3>
+    <form id="monetization-form" class="form-grid">
+      <div class="form-group"><label>Date</label><input type="date" name="date" value="{{ today.isoformat() }}"></div>
+      <div class="form-group"><label>Source</label><input type="text" name="source" placeholder="e.g. Affiliate, Ad Revenue" required></div>
+      <div class="form-group"><label>Revenue ($)</label><input type="number" name="revenue" step="0.01" value="0" min="0"></div>
+      <div class="form-group"><label>Cost ($)</label><input type="number" name="cost" step="0.01" value="0" min="0"></div>
+      <div class="form-group full-width"><label>Notes</label><input type="text" name="notes"></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-primary">Log Entry</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Revenue Ladder</h3>
+    <div class="ladder">
+      <div class="ladder-step {% if phase >= 1 %}ladder-active{% endif %}"><span class="ladder-num">1</span><span>Affiliate Links</span></div>
+      <div class="ladder-step {% if phase >= 2 %}ladder-active{% endif %}"><span class="ladder-num">2</span><span>Digital Product</span></div>
+      <div class="ladder-step {% if phase >= 2 %}ladder-active{% endif %}"><span class="ladder-num">3</span><span>Email Funnel</span></div>
+      <div class="ladder-step {% if phase >= 3 %}ladder-active{% endif %}"><span class="ladder-num">4</span><span>Brand Deals</span></div>
+      <div class="ladder-step"><span class="ladder-num">5</span><span>Owned Product</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Revenue History</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Source</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          {% for m in monetization %}
+          <tr>
+            <td>{{ m.date.strftime('%m/%d') }}</td>
+            <td>{{ m.source }}</td>
+            <td class="green">${{ "%.2f" | format(m.revenue) }}</td>
+            <td class="red">${{ "%.2f" | format(m.cost) }}</td>
+            <td class="{% if m.revenue - m.cost >= 0 %}green{% else %}red{% endif %}">${{ "%.2f" | format(m.revenue - m.cost) }}</td>
+            <td class="truncate">{{ m.notes }}</td>
+            <td><button class="btn-icon" onclick="deleteItem('monetization',{{ m.id }})"><i class="fa-solid fa-trash"></i></button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 90-DAY ROADMAP ─── -->
+<section id="roadmap" class="tab-content">
+  <div class="page-header"><h1>90-Day Roadmap</h1><span class="header-sub">Day {{ days_in }} — Phase {{ phase }}: {{ phase_name }}</span></div>
+
+  <div class="roadmap-phases">
+    <div class="roadmap-phase {% if phase == 1 %}roadmap-active{% endif %}">
+      <div class="roadmap-phase-header"><span class="roadmap-phase-num">1</span><h3>Build Engine</h3><span>Days 1-30</span></div>
+      <div class="roadmap-body">
+        <p><strong>Goal:</strong> Consistency + Data Collection. Not virality. Not money. Data.</p>
+        <ul>
+          <li>5-10 videos per day (150 in 30 days minimum)</li>
+          <li>10 hooks written daily</li>
+          <li>Metrics logged daily</li>
+          <li>1 format tested per week</li>
+          <li>Week 1: Test 3 hook styles, 2 bg visuals, 2 voice styles</li>
+          <li>Week 2: Double down on best hook format</li>
+          <li>Week 3: Improve average watch time, add pattern interrupts</li>
+          <li>Week 4: Identify top 20%, reverse engineer, clone structure</li>
+        </ul>
+        <div class="roadmap-kpi"><strong>KPI:</strong> 150+ uploads, clear retention data</div>
+      </div>
+    </div>
+
+    <div class="roadmap-phase {% if phase == 2 %}roadmap-active{% endif %}">
+      <div class="roadmap-phase-header"><span class="roadmap-phase-num">2</span><h3>Optimize & Scale</h3><span>Days 31-60</span></div>
+      <div class="roadmap-body">
+        <p><strong>Goal:</strong> Refine what works. Kill what doesn't.</p>
+        <ul>
+          <li>8-15 videos per day</li>
+          <li>If retention &lt; 50% at 3s, hook is trash — rewrite</li>
+          <li>Choose 2 winning formats + 1 backup. Cut everything else.</li>
+          <li>Batch production: Mon scripts, Tue record, Wed-Thu edit, Fri schedule</li>
+          <li>Weekend: light analytics + strategy only</li>
+        </ul>
+        <div class="roadmap-kpi"><strong>KPI:</strong> 400+ uploads, 1 video 50k+ views, repeatable format</div>
+      </div>
+    </div>
+
+    <div class="roadmap-phase {% if phase == 3 %}roadmap-active{% endif %}">
+      <div class="roadmap-phase-header"><span class="roadmap-phase-num">3</span><h3>Multiply & Monetize</h3><span>Days 61-90</span></div>
+      <div class="roadmap-body">
+        <p><strong>Goal:</strong> Scale + activate revenue streams.</p>
+        <ul>
+          <li>Consistent retention above 60%</li>
+          <li>Activate affiliate links + digital downloads</li>
+          <li>Build email funnel + paid newsletter</li>
+          <li>Brand email outreach — don't wait for deals</li>
+          <li>Clone format into secondary niche</li>
+          <li>Hire editor / script contractor</li>
+        </ul>
+        <div class="roadmap-kpi"><strong>KPI:</strong> 1,000+ uploads, 5-20k followers, monetization activated</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <h3 class="card-title">Operating Principles</h3>
+    <div class="principles">
+      <div class="principle">Volume builds skill.</div>
+      <div class="principle">Skill builds retention.</div>
+      <div class="principle">Retention builds trust.</div>
+      <div class="principle">Trust builds revenue.</div>
+      <div class="principle">Revenue builds freedom.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SETTINGS ─── -->
+<section id="settings" class="tab-content">
+  <div class="page-header"><h1>Settings</h1></div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 class="card-title">Email Configuration (SMTP)</h3>
+      <form id="settings-form">
+        <div class="form-group"><label>SMTP Host</label><input type="text" name="smtp_host" placeholder="smtp.gmail.com"></div>
+        <div class="form-group"><label>SMTP Port</label><input type="number" name="smtp_port" value="587"></div>
+        <div class="form-group"><label>SMTP Username</label><input type="text" name="smtp_user" placeholder="you@gmail.com"></div>
+        <div class="form-group"><label>SMTP Password / App Password</label><input type="password" name="smtp_pass"></div>
+        <div class="form-group"><label>From Email</label><input type="text" name="from_email" placeholder="you@gmail.com"></div>
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Partner Details</h3>
+      {% for p in partners %}
+      <form class="partner-settings-form" data-id="{{ p.id }}">
+        <h4 style="color:{{ time_blocks[loop.index0].color if loop.index0 < time_blocks | length else '#7c6cf0' }}">{{ p.name }}</h4>
+        <div class="form-grid">
+          <div class="form-group"><label>Name</label><input type="text" name="name" value="{{ p.name }}"></div>
+          <div class="form-group"><label>Email</label><input type="email" name="email" value="{{ p.email }}"></div>
+          <div class="form-group"><label>Role</label><input type="text" name="role" value="{{ p.role }}"></div>
+          <div class="form-group"><label>Script Quota</label><input type="number" name="quota_scripts" value="{{ p.quota_scripts }}"></div>
+          <div class="form-group"><label>Edit Quota</label><input type="number" name="quota_videos_edit" value="{{ p.quota_videos_edit }}"></div>
+          <div class="form-group"><label>Post Quota</label><input type="number" name="quota_videos_post" value="{{ p.quota_videos_post }}"></div>
+        </div>
+        <button type="submit" class="btn btn-secondary" style="margin-top:.5rem">Update Partner</button>
+      </form>
+      <hr class="divider">
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Content Pillars</h3>
+    <div class="pillars-list">
+      {% for p in pillars %}
+      <div class="pillar-tag" style="background:{{ p.color }}22;border-color:{{ p.color }};color:{{ p.color }}">
+        {{ p.name }}
+        <button class="btn-icon" onclick="deleteItem('pillar',{{ p.id }})" style="color:{{ p.color }}"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      {% endfor %}
+    </div>
+    <form id="pillar-form" class="form-grid" style="margin-top:1rem">
+      <div class="form-group"><label>Name</label><input type="text" name="name" required></div>
+      <div class="form-group"><label>Color</label><input type="color" name="color" value="#7c6cf0"></div>
+      <div class="form-group full-width"><label>Description</label><input type="text" name="description"></div>
+      <div class="form-group full-width"><button type="submit" class="btn btn-secondary">Add Pillar</button></div>
+    </form>
+  </div>
+</section>
+
+</main>
+
+<!-- Email templates data for JS -->
+<script>
+const EMAIL_TEMPLATES = {{ email_templates | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

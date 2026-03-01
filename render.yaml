@@ -1,0 +1,22 @@
+databases:
+  - name: ops-hub-db
+    plan: free
+    databaseName: ops_hub
+    user: ops_admin
+
+services:
+  - type: web
+    name: vibe-code-ops-hub
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ops-hub-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11.6"
