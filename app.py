@@ -384,6 +384,16 @@ def compute_quota_and_streak(partner, logs):
     return quota_met_today, streak
 
 
+def get_daily_win(today):
+    top_video = Video.query.filter(Video.date_posted == today).order_by(Video.views.desc()).first()
+    if top_video:
+        return f"Top post today: {top_video.topic or 'Untitled'} ({top_video.views:,} views, {top_video.retention_3s}% 3s retention)."
+    latest_winner = Video.query.filter(Video.winner == True).order_by(Video.date_posted.desc()).first()
+    if latest_winner:
+        return f"Recent winner: {latest_winner.topic or 'Untitled'} on {latest_winner.platform} ({latest_winner.views:,} views)."
+    return "No wins logged yet. Ship today's first high-quality video to start momentum."
+
+
 # ═══════════════════════════════════════════════════════════════
 #  MAIN PAGE
 # ═══════════════════════════════════════════════════════════════
@@ -463,6 +473,44 @@ def index():
         for f in format_stats if f[2] >= 3
     ]
     format_kill_list = sorted(format_kill_list, key=lambda x: x["avg_retention"])[: max(1, len(format_kill_list) // 5)] if format_kill_list else []
+    all_quotas_met = all(v["quota_met_today"] for v in partner_quota.values()) if partner_quota else False
+
+    quotes = [
+        "Ship first. Improve with data.",
+        "Consistency compounds when motivation fades.",
+        "One strong hook can change your week.",
+        "System beats mood. Process beats pressure.",
+        "Small daily wins become unstoppable momentum.",
+        "No guessing today: execute, track, adjust.",
+        "Clarity creates speed. Speed creates output.",
+    ]
+    quote_of_day = quotes[(today.timetuple().tm_yday - 1) % len(quotes)]
+
+    daily_target = 10
+    progress_percent = min(round((total_videos_today / daily_target) * 100) if daily_target else 0, 100)
+    pace_message = "Ahead of pace" if total_videos_today >= daily_target else "Behind pace"
+    daily_win = get_daily_win(today)
+
+    focus_by_role = {
+        "Research & Script Lead": "Write high-retention hooks and script today's top 10.",
+        "Production Lead": "Batch edit for speed and keep hook impact in first 1.5s.",
+        "Distribution & Growth Lead": "Post with optimization, then engage and log analytics.",
+    }
+    today_focus = [
+        {"name": p.name, "role": p.role, "focus": focus_by_role.get(p.role, "Execute core quota and submit daily check-in.")}
+        for p in partners
+    ]
+
+    reflection_key = f"reflection_{today.isoformat()}"
+    today_reflection = get_setting(reflection_key, "")
+    if today_reflection:
+        try:
+            import json
+            today_reflection = json.loads(today_reflection)
+        except Exception:
+            today_reflection = {"worked": "", "improve": ""}
+    else:
+        today_reflection = {"worked": "", "improve": ""}
 
     return render_template(
         "index.html",
@@ -493,6 +541,13 @@ def index():
         hook_heatmap=hook_heatmap,
         format_kill_list=format_kill_list,
         ab_tests=ab_tests,
+        all_quotas_met=all_quotas_met,
+        quote_of_day=quote_of_day,
+        progress_percent=progress_percent,
+        pace_message=pace_message,
+        daily_win=daily_win,
+        today_focus=today_focus,
+        today_reflection=today_reflection,
     )
 
 
@@ -720,6 +775,16 @@ def api_save_settings():
         set_setting(key, value)
     if any(k in request.json for k in ["automation_enabled", "automation_hour", "automation_minute"]):
         configure_scheduler()
+    return jsonify(success=True)
+
+
+@app.route("/api/reflection", methods=["POST"])
+def api_save_reflection():
+    import json as _json
+    d = request.json or {}
+    day = d.get("date", date.today().isoformat())
+    key = f"reflection_{day}"
+    set_setting(key, _json.dumps({"worked": d.get("worked", ""), "improve": d.get("improve", "")}))
     return jsonify(success=True)
 
 

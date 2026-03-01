@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
-<body>
+<body data-all-quotas-met="{{ 'true' if all_quotas_met else 'false' }}">
 
 <!-- ═══════════════════════════════════════ -->
 <!--  SIDEBAR                               -->
@@ -68,35 +68,58 @@
     </div>
   </div>
 
+  <div class="card motivation-banner">
+    <div class="motivation-quote">"{{ quote_of_day }}"</div>
+    <div class="motivation-sub">{{ daily_win }}</div>
+  </div>
+
   <div class="kpi-grid">
     <div class="kpi-card">
-      <div class="kpi-icon" style="background:#7c6cf022;color:#7c6cf0"><i class="fa-solid fa-video"></i></div>
+      <div class="kpi-icon" style="background:rgba(191,162,255,.2);color:#BFA2FF"><i class="fa-solid fa-video"></i></div>
       <div class="kpi-data">
         <span class="kpi-value">{{ total_videos_today }}</span>
         <span class="kpi-label">Videos Today</span>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" style="background:#00c89722;color:#00c897"><i class="fa-solid fa-film"></i></div>
+      <div class="kpi-icon" style="background:rgba(190,239,216,.6);color:#2D9D78"><i class="fa-solid fa-film"></i></div>
       <div class="kpi-data">
         <span class="kpi-value">{{ total_videos_all }}</span>
         <span class="kpi-label">Total Videos</span>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" style="background:#f0834d22;color:#f0834d"><i class="fa-solid fa-eye"></i></div>
+      <div class="kpi-icon" style="background:rgba(255,217,199,.6);color:#E8956B"><i class="fa-solid fa-eye"></i></div>
       <div class="kpi-data">
         <span class="kpi-value">{{ avg_retention }}%</span>
         <span class="kpi-label">Avg 3s Retention</span>
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" style="background:#3b82f622;color:#3b82f6"><i class="fa-solid fa-magnet"></i></div>
+      <div class="kpi-icon" style="background:rgba(217,200,255,.5);color:#5B7CF5"><i class="fa-solid fa-magnet"></i></div>
       <div class="kpi-data">
         <span class="kpi-value">{{ hooks | length }}</span>
         <span class="kpi-label">Hooks Banked</span>
       </div>
     </div>
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:rgba(190,239,216,.6);color:#2D9D78"><i class="fa-solid fa-bullseye"></i></div>
+      <div class="kpi-data">
+        <span class="kpi-value">{{ progress_percent }}%</span>
+        <span class="kpi-label">Daily Output Goal ({{ pace_message }})</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-ring-wrap">
+    <div class="progress-ring" data-percent="{{ [days_in / 90 * 100, 100] | min }}">
+      <svg viewBox="0 0 36 36">
+        <path class="progress-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+        <path class="progress-ring-fill" stroke-dasharray="{{ [days_in / 90 * 100, 100] | min }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+      </svg>
+      <span class="progress-ring-text">{{ days_in }}<small>/90</small></span>
+    </div>
+    <div class="progress-ring-label">90-Day Progress</div>
   </div>
 
   <div class="grid-2">
@@ -110,6 +133,7 @@
           <div class="partner-info">
             <span class="partner-name">{{ p.name }}</span>
             <span class="partner-role">{{ p.role }}</span>
+            <span class="streak-fire" title="Current streak"><i class="fa-solid fa-fire"></i> {{ partner_quota[p.id].streak }} days</span>
           </div>
           {% if log %}
           <span class="badge badge-green">Logged</span>
@@ -127,6 +151,36 @@
         <button class="btn btn-secondary" onclick="switchTab('video-log')"><i class="fa-solid fa-video"></i> Add Video</button>
         <button class="btn btn-secondary" onclick="switchTab('hook-bank')"><i class="fa-solid fa-magnet"></i> Add Hook</button>
         <button class="btn btn-accent" onclick="switchTab('emails')"><i class="fa-solid fa-envelope"></i> Send Reminder</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Today's Focus</h3>
+    <div class="focus-grid">
+      {% for f in today_focus %}
+      <div class="focus-card">
+        <div class="focus-name">{{ f.name }}</div>
+        <div class="focus-role">{{ f.role }}</div>
+        <div class="focus-text">{{ f.focus }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">End-of-Day Reflection</h3>
+    <div class="form-grid">
+      <div class="form-group full-width">
+        <label>What worked best today?</label>
+        <textarea id="reflection-worked" rows="2" placeholder="Top win, winning hook, winning format...">{{ today_reflection.worked }}</textarea>
+      </div>
+      <div class="form-group full-width">
+        <label>What needs improvement tomorrow?</label>
+        <textarea id="reflection-improve" rows="2" placeholder="Bottleneck, missed quota reason, fix...">{{ today_reflection.improve }}</textarea>
+      </div>
+      <div class="form-group full-width">
+        <button id="save-reflection" class="btn btn-primary" type="button">Save Reflection</button>
       </div>
     </div>
   </div>

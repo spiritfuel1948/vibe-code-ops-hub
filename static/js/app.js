@@ -129,6 +129,24 @@ document.getElementById('pillar-form')?.addEventListener('submit', async (e) => 
   else showToast('Error adding pillar', 'error');
 });
 
+// ── Save Reflection ──
+document.getElementById('save-reflection')?.addEventListener('click', async () => {
+  const worked = document.getElementById('reflection-worked')?.value ?? '';
+  const improve = document.getElementById('reflection-improve')?.value ?? '';
+  const res = await apiPost('/api/reflection', { worked, improve });
+  if (res.success) showToast('Reflection saved');
+  else showToast('Error saving reflection', 'error');
+});
+
+// ── Celebration when all quotas met (once per session) ──
+(function initCelebration() {
+  if (document.body?.dataset.allQuotasMet !== 'true') return;
+  if (sessionStorage.getItem('vibe-code-celebrated') === '1') return;
+  sessionStorage.setItem('vibe-code-celebrated', '1');
+  document.body.classList.add('celebration-active');
+  setTimeout(() => document.body.classList.remove('celebration-active'), 2500);
+})();
+
 // ── Settings form ──
 document.getElementById('settings-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
