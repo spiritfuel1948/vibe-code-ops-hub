@@ -134,7 +134,10 @@ document.getElementById('settings-form')?.addEventListener('submit', async (e) =
   e.preventDefault();
   const data = formToJson(e.target);
   const res = await apiPost('/api/settings', data);
-  if (res.success) showToast('Settings saved');
+  if (res.success) {
+    showToast('Settings saved');
+    setTimeout(loadSchedulerStatus, 300);
+  }
   else showToast('Error saving settings', 'error');
 });
 
@@ -147,10 +150,33 @@ document.getElementById('settings-form')?.addEventListener('submit', async (e) =
     if (!form) return;
     Object.entries(data).forEach(([key, val]) => {
       const input = form.querySelector(`[name="${key}"]`);
-      if (input) input.value = val;
+      if (!input) return;
+      if (input.type === 'checkbox') {
+        input.checked = String(val).toLowerCase() === 'true';
+      } else {
+        input.value = val;
+      }
     });
+    const cronUrlEl = document.getElementById('cron-url');
+    if (cronUrlEl) {
+      const token = data.cron_token || '';
+      cronUrlEl.value = `${window.location.origin}/api/cron/run-automation?token=${token}`;
+    }
+    loadSchedulerStatus();
   } catch (e) { /* settings not loaded yet */ }
 })();
+
+async function loadSchedulerStatus() {
+  try {
+    const res = await fetch('/api/scheduler-status');
+    const data = await res.json();
+    const el = document.getElementById('scheduler-status');
+    if (!el || !data.success) return;
+    el.textContent = `Scheduler: ${data.scheduler_running ? 'running' : 'stopped'} | Enabled: ${data.automation_enabled ? 'yes' : 'no'} | Time: ${String(data.automation_hour).padStart(2, '0')}:${String(data.automation_minute).padStart(2, '0')} | Job loaded: ${data.job_present ? 'yes' : 'no'}`;
+  } catch (e) {
+    // no-op
+  }
+}
 
 // ── Partner settings ──
 document.querySelectorAll('.partner-settings-form').forEach(form => {
@@ -176,6 +202,60 @@ document.getElementById('email-form')?.addEventListener('submit', async (e) => {
   const res = await apiPost('/api/send-email', { recipients, subject, body, template_type: templateType });
   if (res.success) { showToast('Email sent!'); setTimeout(() => location.reload(), 500); }
   else showToast(res.message || 'Email failed', 'error');
+});
+
+document.getElementById('ab-test-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = formToJson(e.target);
+  if (Number(data.video_a_id) === Number(data.video_b_id)) {
+    showToast('Video A and B must be different', 'error');
+    return;
+  }
+  const res = await apiPost('/api/ab-tests', data);
+  if (res.success) { showToast('A/B test created'); setTimeout(() => location.reload(), 400); }
+  else showToast('Failed to create A/B test', 'error');
+});
+
+async function pickWinner(testId, winnerVideoId) {
+  const res = await apiPut(`/api/ab-tests/${testId}/winner`, { winner_video_id: winnerVideoId });
+  if (res.success) { showToast('Winner saved'); setTimeout(() => location.reload(), 300); }
+  else showToast(res.error || 'Failed to save winner', 'error');
+}
+
+document.getElementById('btn-weekly-digest')?.addEventListener('click', async () => {
+  const res = await fetch('/api/weekly-digest');
+  const data = await res.json();
+  if (!data.success) {
+    showToast('Failed to generate digest', 'error');
+    return;
+  }
+  const target = document.getElementById('weekly-digest-result');
+  target.innerHTML = `Videos: ${data.total_videos} | Views: ${data.total_views.toLocaleString()} | Avg 3s Retention: ${data.avg_retention_3s}%`;
+  showToast('Weekly digest generated');
+});
+
+document.getElementById('btn-save-password')?.addEventListener('click', async () => {
+  const pw = document.getElementById('app-password')?.value || '';
+  const res = await apiPost('/api/settings', { app_password: pw });
+  if (res.success) showToast('App password saved');
+  else showToast('Failed to save password', 'error');
+});
+
+document.getElementById('btn-run-automation')?.addEventListener('click', async () => {
+  const res = await apiPost('/api/run-automation', {});
+  if (!res.success) {
+    showToast('Automation failed', 'error');
+    return;
+  }
+  const target = document.getElementById('automation-result');
+  const sentCount = (res.reminders || []).length;
+  target.textContent = sentCount ? `Sent ${sentCount} reminder(s).` : 'No reminders needed right now.';
+  showToast('Automation run complete');
+});
+
+document.getElementById('btn-logout')?.addEventListener('click', async () => {
+  const res = await apiPost('/api/logout', {});
+  if (res.success) window.location.href = '/login';
 });
 
 // ═══════════════════════════════════════════════════════════════

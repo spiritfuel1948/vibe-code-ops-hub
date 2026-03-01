@@ -1,10 +1,13 @@
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+import io
+import csv
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -18,6 +21,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{os.path.joi
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+scheduler = BackgroundScheduler()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -132,6 +136,18 @@ class MonetizationEntry(db.Model):
     notes = db.Column(db.Text, default="")
 
 
+class ABTest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    test_name = db.Column(db.String(200), nullable=False)
+    video_a_id = db.Column(db.Integer, db.ForeignKey("video.id"), nullable=False)
+    video_b_id = db.Column(db.Integer, db.ForeignKey("video.id"), nullable=False)
+    winner_video_id = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, default="")
+    video_a = db.relationship("Video", foreign_keys=[video_a_id])
+    video_b = db.relationship("Video", foreign_keys=[video_b_id])
+
+
 # ═══════════════════════════════════════════════════════════════
 #  STATIC SCHEDULE DATA
 # ═══════════════════════════════════════════════════════════════
@@ -221,6 +237,27 @@ def set_setting(key, value):
     db.session.commit()
 
 
+def is_authenticated():
+    password = get_setting("app_password", "")
+    if not password:
+        return True
+    return session.get("authenticated", False) is True
+
+
+@app.before_request
+def enforce_auth():
+    open_paths = {"/login", "/api/login", "/api/cron/run-automation"}
+    if request.path.startswith("/static/"):
+        return None
+    if request.path in open_paths:
+        return None
+    if is_authenticated():
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify(success=False, error="Unauthorized"), 401
+    return redirect(url_for("login"))
+
+
 def send_email_smtp(to_emails, subject, body):
     host = get_setting("smtp_host")
     port = int(get_setting("smtp_port", "587"))
@@ -244,6 +281,57 @@ def send_email_smtp(to_emails, subject, body):
         return False, str(exc)
 
 
+def run_no_log_reminders(source="automation"):
+    today = date.today()
+    partners = Partner.query.all()
+    sent = []
+    for p in partners:
+        if not p.email:
+            continue
+        logs = DailyLog.query.filter_by(partner_id=p.id, date=today).all()
+        if not logs:
+            subject = "No daily log submitted yet"
+            body = f"{p.name}, please submit your daily log before 9:15 PM."
+            ok, msg = send_email_smtp([p.email], subject, body)
+            sent.append({"partner": p.name, "email": p.email, "status": "sent" if ok else f"failed: {msg}"})
+            db.session.add(
+                EmailLog(
+                    recipients=p.email,
+                    subject=subject,
+                    body=body,
+                    template_type=source,
+                    status="sent" if ok else "failed",
+                )
+            )
+    db.session.commit()
+    return sent
+
+
+def scheduled_reminder_job():
+    with app.app_context():
+        run_no_log_reminders("scheduled")
+
+
+def configure_scheduler():
+    if scheduler.running:
+        try:
+            scheduler.remove_job("daily_no_log_reminders")
+        except Exception:
+            pass
+    enabled = get_setting("automation_enabled", "false").lower() == "true"
+    hour = int(get_setting("automation_hour", "20"))
+    minute = int(get_setting("automation_minute", "30"))
+    if enabled:
+        scheduler.add_job(
+            id="daily_no_log_reminders",
+            func=scheduled_reminder_job,
+            trigger="cron",
+            hour=hour,
+            minute=minute,
+            replace_existing=True,
+        )
+
+
 def compute_partner_scores(partners, since):
     scores = []
     for p in partners:
@@ -262,6 +350,38 @@ def compute_partner_scores(partners, since):
             {"partner": p, "score": score, "days_active": days_active, "total_output": total_output}
         )
     return scores
+
+
+def compute_quota_and_streak(partner, logs):
+    by_date = {}
+    for l in logs:
+        by_date[l.date] = by_date.get(l.date, {"scripts": 0, "edited": 0, "posted": 0})
+        by_date[l.date]["scripts"] += l.scripts_written
+        by_date[l.date]["edited"] += l.videos_edited
+        by_date[l.date]["posted"] += l.videos_posted
+    today = date.today()
+    today_data = by_date.get(today, {"scripts": 0, "edited": 0, "posted": 0})
+    quota_met_today = (
+        today_data["scripts"] >= (partner.quota_scripts or 0)
+        and today_data["edited"] >= (partner.quota_videos_edit or 0)
+        and today_data["posted"] >= (partner.quota_videos_post or 0)
+    )
+    streak = 0
+    cursor = today
+    while True:
+        d = by_date.get(cursor)
+        if not d:
+            break
+        met = (
+            d["scripts"] >= (partner.quota_scripts or 0)
+            and d["edited"] >= (partner.quota_videos_edit or 0)
+            and d["posted"] >= (partner.quota_videos_post or 0)
+        )
+        if not met:
+            break
+        streak += 1
+        cursor = cursor - timedelta(days=1)
+    return quota_met_today, streak
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -291,6 +411,7 @@ def index():
     email_logs = EmailLog.query.order_by(EmailLog.sent_at.desc()).limit(30).all()
     pillars = ContentPillar.query.all()
     partner_scores = compute_partner_scores(partners, thirty_days_ago)
+    ab_tests = ABTest.query.order_by(ABTest.created_at.desc()).limit(30).all()
 
     week_videos = Video.query.filter(Video.date_posted >= today - timedelta(days=7)).all()
     retentions = [v.retention_3s for v in week_videos if v.retention_3s]
@@ -307,6 +428,41 @@ def index():
 
     total_revenue = sum(m.revenue for m in monetization)
     total_cost = sum(m.cost for m in monetization)
+    partner_quota = {}
+    missed_days_calendar = {}
+    for p in partners:
+        logs = DailyLog.query.filter(DailyLog.partner_id == p.id, DailyLog.date >= thirty_days_ago).all()
+        quota_met_today, streak = compute_quota_and_streak(p, logs)
+        partner_quota[p.id] = {"quota_met_today": quota_met_today, "streak": streak}
+        missed_days = []
+        dates_seen = {l.date for l in logs}
+        d = thirty_days_ago
+        while d <= today:
+            if d not in dates_seen:
+                missed_days.append(d.isoformat())
+            d += timedelta(days=1)
+        missed_days_calendar[p.id] = missed_days
+
+    hook_heatmap = []
+    for h in hooks:
+        if h.avg_retention_3s >= 65:
+            bucket = "hot"
+        elif h.avg_retention_3s >= 45:
+            bucket = "warm"
+        else:
+            bucket = "cold"
+        hook_heatmap.append({"id": h.id, "text": h.text, "retention": h.avg_retention_3s, "bucket": bucket})
+
+    format_stats = (
+        db.session.query(Video.format_type, db.func.avg(Video.retention_3s), db.func.count(Video.id))
+        .group_by(Video.format_type)
+        .all()
+    )
+    format_kill_list = [
+        {"format": f[0] or "Unknown", "avg_retention": round(f[1] or 0, 1), "count": f[2]}
+        for f in format_stats if f[2] >= 3
+    ]
+    format_kill_list = sorted(format_kill_list, key=lambda x: x["avg_retention"])[: max(1, len(format_kill_list) // 5)] if format_kill_list else []
 
     return render_template(
         "index.html",
@@ -332,7 +488,41 @@ def index():
         today=today,
         total_revenue=total_revenue,
         total_cost=total_cost,
+        partner_quota=partner_quota,
+        missed_days_calendar=missed_days_calendar,
+        hook_heatmap=hook_heatmap,
+        format_kill_list=format_kill_list,
+        ab_tests=ab_tests,
     )
+
+
+@app.route("/login", methods=["GET"])
+def login():
+    return """
+    <html><body style="font-family:Arial;background:#0e0e18;color:#e0e0f0;display:flex;align-items:center;justify-content:center;height:100vh;">
+    <form method="post" action="/api/login" style="background:#111120;padding:24px;border:1px solid #1f1f3a;border-radius:8px;width:320px;">
+      <h3 style="margin-top:0;">VIBE CODE OPS LOGIN</h3>
+      <p style="color:#9a9ab5;font-size:14px;">Enter app password set in Settings.</p>
+      <input type="password" name="password" style="width:100%;padding:10px;border-radius:6px;border:1px solid #2a2a44;background:#0e0e18;color:#fff;">
+      <button type="submit" style="margin-top:12px;width:100%;padding:10px;background:#7c6cf0;color:#fff;border:none;border-radius:6px;">Login</button>
+    </form></body></html>
+    """
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    password = get_setting("app_password", "")
+    entered = request.form.get("password") or (request.json or {}).get("password", "")
+    if not password or entered == password:
+        session["authenticated"] = True
+        return redirect(url_for("index"))
+    return "Invalid password", 401
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    session.pop("authenticated", None)
+    return jsonify(success=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -528,7 +718,113 @@ def api_get_settings():
 def api_save_settings():
     for key, value in request.json.items():
         set_setting(key, value)
+    if any(k in request.json for k in ["automation_enabled", "automation_hour", "automation_minute"]):
+        configure_scheduler()
     return jsonify(success=True)
+
+
+@app.route("/api/export/<string:kind>.csv", methods=["GET"])
+def api_export_csv(kind):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    if kind == "daily_logs":
+        writer.writerow(["date", "partner", "scripts", "edited", "posted", "comments", "hooks", "trend_research", "notes"])
+        rows = DailyLog.query.order_by(DailyLog.date.desc()).all()
+        for r in rows:
+            writer.writerow([r.date.isoformat(), r.partner.name, r.scripts_written, r.videos_edited, r.videos_posted, r.comments_replied, r.hooks_written, r.trend_research, r.notes])
+    elif kind == "videos":
+        writer.writerow(["date_posted", "platform", "topic", "format", "retention_3s", "retention_50", "views", "likes", "comments", "shares", "saves", "winner"])
+        rows = Video.query.order_by(Video.date_posted.desc()).all()
+        for r in rows:
+            writer.writerow([r.date_posted.isoformat(), r.platform, r.topic, r.format_type, r.retention_3s, r.retention_50, r.views, r.likes, r.comments_count, r.shares, r.saves, r.winner])
+    elif kind == "hooks":
+        writer.writerow(["created_at", "text", "format", "tested", "avg_retention_3s", "winning"])
+        rows = Hook.query.order_by(Hook.created_at.desc()).all()
+        for r in rows:
+            writer.writerow([r.created_at.isoformat(), r.text, r.format_type, r.tested, r.avg_retention_3s, r.winning])
+    else:
+        return jsonify(success=False, error="Unsupported export"), 400
+    data = output.getvalue()
+    return Response(
+        data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={kind}.csv"},
+    )
+
+
+@app.route("/api/weekly-digest", methods=["GET"])
+def api_weekly_digest():
+    since = date.today() - timedelta(days=7)
+    videos = Video.query.filter(Video.date_posted >= since).all()
+    logs = DailyLog.query.filter(DailyLog.date >= since).all()
+    total_views = sum(v.views for v in videos)
+    avg_ret = round(sum(v.retention_3s for v in videos if v.retention_3s) / max(1, len([v for v in videos if v.retention_3s])), 1)
+    top = sorted(videos, key=lambda x: x.views, reverse=True)[:3]
+    return jsonify(
+        success=True,
+        total_videos=len(videos),
+        total_views=total_views,
+        avg_retention_3s=avg_ret,
+        top_videos=[{"topic": t.topic, "views": t.views, "platform": t.platform} for t in top],
+        total_logs=len(logs),
+    )
+
+
+@app.route("/api/ab-tests", methods=["POST"])
+def api_create_ab_test():
+    d = request.json
+    test = ABTest(
+        test_name=d.get("test_name", "A/B Test"),
+        video_a_id=int(d["video_a_id"]),
+        video_b_id=int(d["video_b_id"]),
+        notes=d.get("notes", ""),
+    )
+    db.session.add(test)
+    db.session.commit()
+    return jsonify(success=True, id=test.id)
+
+
+@app.route("/api/ab-tests/<int:test_id>/winner", methods=["PUT"])
+def api_pick_ab_winner(test_id):
+    test = ABTest.query.get_or_404(test_id)
+    winner_id = int((request.json or {}).get("winner_video_id", 0))
+    if winner_id not in [test.video_a_id, test.video_b_id]:
+        return jsonify(success=False, error="winner must be video A or B"), 400
+    test.winner_video_id = winner_id
+    db.session.commit()
+    return jsonify(success=True)
+
+
+@app.route("/api/run-automation", methods=["POST"])
+def api_run_automation():
+    sent = run_no_log_reminders("manual_automation")
+    return jsonify(success=True, reminders=sent)
+
+
+@app.route("/api/cron/run-automation", methods=["GET"])
+def api_cron_run_automation():
+    token = request.args.get("token", "")
+    expected = get_setting("cron_token", "")
+    if expected and token != expected:
+        return jsonify(success=False, error="invalid token"), 403
+    sent = run_no_log_reminders("cron_external")
+    return jsonify(success=True, reminders=sent)
+
+
+@app.route("/api/scheduler-status", methods=["GET"])
+def api_scheduler_status():
+    enabled = get_setting("automation_enabled", "false").lower() == "true"
+    hour = int(get_setting("automation_hour", "20"))
+    minute = int(get_setting("automation_minute", "30"))
+    job = scheduler.get_job("daily_no_log_reminders") if scheduler.running else None
+    return jsonify(
+        success=True,
+        scheduler_running=scheduler.running,
+        automation_enabled=enabled,
+        automation_hour=hour,
+        automation_minute=minute,
+        job_present=job is not None,
+    )
 
 
 @app.route("/api/delete/<string:model>/<int:item_id>", methods=["DELETE"])
@@ -631,6 +927,17 @@ def init_db():
 
 with app.app_context():
     init_db()
+    if not get_setting("automation_hour"):
+        set_setting("automation_hour", "20")
+    if not get_setting("automation_minute"):
+        set_setting("automation_minute", "30")
+    if not get_setting("automation_enabled"):
+        set_setting("automation_enabled", "false")
+    if not get_setting("cron_token"):
+        set_setting("cron_token", app.config["SECRET_KEY"][:16])
+    if not scheduler.running:
+        scheduler.start()
+    configure_scheduler()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

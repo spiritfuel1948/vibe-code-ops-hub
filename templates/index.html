@@ -33,6 +33,7 @@
   <div class="sidebar-section-label">Intelligence</div>
   <a class="sidebar-link" data-tab="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</a>
   <a class="sidebar-link" data-tab="accountability"><i class="fa-solid fa-ranking-star"></i> Accountability</a>
+  <a class="sidebar-link" data-tab="experiments"><i class="fa-solid fa-flask"></i> Experiments</a>
 
   <div class="sidebar-section-label">Growth</div>
   <a class="sidebar-link" data-tab="monetization"><i class="fa-solid fa-dollar-sign"></i> Monetization</a>
@@ -136,6 +137,19 @@
       <div class="rev-item"><span class="rev-label">Total Revenue</span><span class="rev-value green">${{ "%.2f" | format(total_revenue) }}</span></div>
       <div class="rev-item"><span class="rev-label">Total Cost</span><span class="rev-value red">${{ "%.2f" | format(total_cost) }}</span></div>
       <div class="rev-item"><span class="rev-label">Net Profit</span><span class="rev-value {% if total_revenue - total_cost >= 0 %}green{% else %}red{% endif %}">${{ "%.2f" | format(total_revenue - total_cost) }}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Exports & Weekly Digest</h3>
+    <div class="quick-actions">
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+        <a class="btn btn-secondary" href="/api/export/daily_logs.csv">Export Daily Logs CSV</a>
+        <a class="btn btn-secondary" href="/api/export/videos.csv">Export Videos CSV</a>
+        <a class="btn btn-secondary" href="/api/export/hooks.csv">Export Hooks CSV</a>
+      </div>
+      <button id="btn-weekly-digest" class="btn btn-primary">Generate Weekly Digest</button>
+      <div id="weekly-digest-result" class="muted"></div>
     </div>
   </div>
 </section>
@@ -327,6 +341,21 @@
       {% endfor %}
     </div>
   </div>
+
+  <div class="card">
+    <h3 class="card-title">Hook Heatmap</h3>
+    <div class="hook-list">
+      {% for h in hook_heatmap %}
+      <div class="hook-item {% if h.bucket == 'hot' %}hook-winner{% endif %}" style="{% if h.bucket == 'cold' %}border-color:#ef4444{% elif h.bucket == 'warm' %}border-color:#eab308{% endif %}">
+        <div class="hook-text">{{ h.text }}</div>
+        <div class="hook-meta">
+          <span class="badge {% if h.bucket == 'hot' %}badge-green{% elif h.bucket == 'warm' %}badge-gold{% else %}badge-red{% endif %}">{{ h.bucket|upper }}</span>
+          <span class="badge badge-purple">{{ h.retention }}% 3s retention</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
 <!-- ─── ANALYTICS ─── -->
@@ -377,6 +406,71 @@
       <div class="rule-item"><i class="fa-solid fa-triangle-exclamation yellow"></i><span>2 misses per week = Performance Review</span></div>
       <div class="rule-item"><i class="fa-solid fa-circle-exclamation red"></i><span>4 misses per month = Role Restructure</span></div>
       <div class="rule-item"><i class="fa-solid fa-chart-simple green"></i><span>Score below 75 = Corrective Action</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Quota + Streak</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Partner</th><th>Quota Today</th><th>Current Streak</th><th>Missed Days (30d)</th></tr></thead>
+        <tbody>
+          {% for p in partners %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>
+              {% if partner_quota[p.id].quota_met_today %}
+                <span class="badge badge-green">MET</span>
+              {% else %}
+                <span class="badge badge-red">MISSED</span>
+              {% endif %}
+            </td>
+            <td>{{ partner_quota[p.id].streak }} days</td>
+            <td>{{ missed_days_calendar[p.id] | length }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── EXPERIMENTS ─── -->
+<section id="experiments" class="tab-content">
+  <div class="page-header"><h1>A/B Experiments</h1></div>
+  <div class="card">
+    <h3 class="card-title">Create A/B Test</h3>
+    <form id="ab-test-form" class="form-grid">
+      <div class="form-group"><label>Test Name</label><input type="text" name="test_name" required></div>
+      <div class="form-group"><label>Video A</label><select name="video_a_id" required>{% for v in recent_videos %}<option value="{{ v.id }}">{{ v.topic }} ({{ v.platform }})</option>{% endfor %}</select></div>
+      <div class="form-group"><label>Video B</label><select name="video_b_id" required>{% for v in recent_videos %}<option value="{{ v.id }}">{{ v.topic }} ({{ v.platform }})</option>{% endfor %}</select></div>
+      <div class="form-group"><label>Notes</label><input type="text" name="notes"></div>
+      <div class="form-group full-width"><button class="btn btn-primary" type="submit">Create Test</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h3 class="card-title">Recent A/B Tests</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Video A</th><th>Video B</th><th>Winner</th></tr></thead>
+        <tbody>
+          {% for t in ab_tests %}
+          <tr>
+            <td>{{ t.test_name }}</td>
+            <td>{{ t.video_a.topic }}</td>
+            <td>{{ t.video_b.topic }}</td>
+            <td>
+              {% if t.winner_video_id %}
+                <span class="badge badge-green">Chosen</span>
+              {% else %}
+                <button class="btn-sm" onclick="pickWinner({{ t.id }}, {{ t.video_a_id }})">A Wins</button>
+                <button class="btn-sm" onclick="pickWinner({{ t.id }}, {{ t.video_b_id }})">B Wins</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </section>
@@ -654,8 +748,17 @@
         <div class="form-group"><label>SMTP Username</label><input type="text" name="smtp_user" placeholder="you@gmail.com"></div>
         <div class="form-group"><label>SMTP Password / App Password</label><input type="password" name="smtp_pass"></div>
         <div class="form-group"><label>From Email</label><input type="text" name="from_email" placeholder="you@gmail.com"></div>
+        <div class="form-group form-check-group"><label><input type="checkbox" name="automation_enabled"> Enable Daily Auto-Reminders</label></div>
+        <div class="form-group"><label>Auto Reminder Hour (0-23)</label><input type="number" name="automation_hour" min="0" max="23"></div>
+        <div class="form-group"><label>Auto Reminder Minute (0-59)</label><input type="number" name="automation_minute" min="0" max="59"></div>
+        <div class="form-group"><label>Cron Token</label><input type="text" name="cron_token"></div>
+        <div class="form-group full-width">
+          <label>External Cron URL (for free-tier wakeups)</label>
+          <input type="text" id="cron-url" readonly value="">
+        </div>
         <button type="submit" class="btn btn-primary">Save Settings</button>
       </form>
+      <div id="scheduler-status" class="muted" style="margin-top:.75rem;"></div>
     </div>
 
     <div class="card">
@@ -675,6 +778,24 @@
       </form>
       <hr class="divider">
       {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Security & Automation</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>App Password (optional)</label>
+        <input type="password" id="app-password" placeholder="Set a shared password">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <button class="btn btn-secondary" type="button" id="btn-save-password">Save App Password</button>
+      </div>
+      <div class="form-group full-width" style="display:flex;gap:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" type="button" id="btn-run-automation">Run no-log reminders now</button>
+        <button class="btn btn-secondary" type="button" id="btn-logout">Logout</button>
+      </div>
+      <div id="automation-result" class="muted full-width"></div>
     </div>
   </div>
 
